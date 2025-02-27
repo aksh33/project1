@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+    
+    <link rel="icon" href= "\static\images/tit.jpg" type="image/y-icon"> 
+<head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+        <style>
+            /* Base Styles */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: 'Arial', sans-serif;
+            }
+    
+            /* Chatbot Interface */
+            .chatbot-container {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                width: 400px;
+                background: white;
+                border-radius: 15px;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+                transform: translateY(110%);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+            }
+    
+            .chatbot-container.active {
+                transform: translateY(0);
+            }
+    
+            .chat-header {
+                background: #4CAF50;
+                color: white;
+                padding: 1.2rem;
+                border-radius: 15px 15px 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+    
+            .chat-body {
+                height: 400px;
+                overflow-y: auto;
+                padding: 1rem;
+                background: #f9f9f9;
+            }
+    
+            .message {
+                margin: 0.8rem 0;
+                padding: 1rem;
+                border-radius: 15px;
+                max-width: 80%;
+                animation: fadeIn 0.3s ease;
+                word-break: break-word; /* prevent long words from overflowing */
+            }
+    
+            .user-message {
+                background: #e3f2fd;
+                margin-left: auto;
+            }
+    
+            .bot-message {
+                background: white;
+                border: 1px solid #ddd;
+                margin-right: auto;
+            }
+    
+            .input-area {
+                display: flex;
+                padding: 1rem;
+                border-top: 1px solid #eee;
+            }
+    
+            #user-input {
+                flex: 1;
+                padding: 0.8rem;
+                border: 1px solid #ddd;
+                border-radius: 25px;
+                margin-right: 0.5rem;
+            }
+    
+            #send-btn {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 0.8rem 1.5rem;
+                border-radius: 25px;
+                cursor: pointer;
+                transition: background 0.3s;
+            }
+    
+            .chat-toggle {
+                position: fixed;
+                bottom: 30px;
+                right: 30px;
+                background: #4CAF50;
+                color: white;
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            }
+    
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+    
+            /* Sample Questions */
+            .sample-questions {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-start; /* Align items to the start */
+                padding: 0.5rem;
+            }
+    
+            .sample-question {
+                background: #f0f0f0;
+                border: 1px solid #ddd;
+                padding: 0.5rem 0.75rem;
+                margin: 0.25rem;
+                border-radius: 20px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                transition: background-color 0.2s;
+            }
+    
+            .sample-question:hover {
+                background-color: #e0e0e0;
+            }
+    
+            #close-chat {
+                background: none;
+                color: white;
+                border: none;
+                cursor: pointer;
+                font-size: 1.2rem;
+            }
+        </style>
+    </head>
+    <body>
+    
+        <!-- Chatbot Container -->
+        <div class="chatbot-container" id="chatbot">
+            <div class="chat-header">
+                <h3><i class="fas fa-seedling"></i> AgriBot</h3>
+                <button id="close-chat"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="chat-body" id="chat-body">
+                <div class="sample-questions" id="sample-questions">
+                    <!-- Sample questions will be dynamically added here -->
+                </div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="Ask your farming question...">
+                <button id="send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    
+        <div class="chat-toggle" id="chat-toggle">
+            <i class="fas fa-comments"></i>
+        </div>
+    
+        <script>
+            // Configuration
+            const API_KEY = 'AIzaSyDkHSpji5eqH-Gpv9IlwK_cn-MfKRYmCxg'; // Replace with your API key
+            const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    
+            // Agricultural Expert Configuration
+            const systemPrompt = `You are AgriExpert, an AI agricultural specialist.  Provide detailed, practical advice suitable for both small and large-scale farmers. You have expertise in:
+            - Crop cultivation and rotation
+            - Soil management and fertilization
+            - Pest/disease identification and control
+            - Organic farming practices
+            - Agricultural economics
+            - Livestock management
+            - Weather impact analysis.
+            Be concise and helpful. If a question is outside your expertise, politely say you don't have information on that topic.  Avoid making up information.`;
+    
+            // DOM Elements
+            const chatbot = document.getElementById('chatbot');
+            const chatBody = document.getElementById('chat-body');
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const chatToggle = document.getElementById('chat-toggle');
+            const closeChatBtn = document.getElementById('close-chat');
+            const sampleQuestionsContainer = document.getElementById('sample-questions');
+    
+    
+            // Toggle Chat Interface
+            chatToggle.addEventListener('click', () => {
+                chatbot.classList.toggle('active');
+            });
+    
+             // Close Chat Interface
+             closeChatBtn.addEventListener('click', () => {
+                chatbot.classList.remove('active');
+            });
+    
+            // Handle User Input
+            async function handleUserInput() {
+                const message = userInput.value.trim();
+                if (!message) return;
+    
+                addMessage(message, true);
+                userInput.value = '';
+    
+                try {
+                  const requestBody = {
+                      contents: [{
+                          parts: [{ text: `${systemPrompt}\nUser: ${message}` }]
+                      }],
+                      generationConfig: {
+                          temperature: 0.7,
+                          maxOutputTokens: 500
+                      }
+                  };
+    
+                  console.log("Request Body:", JSON.stringify(requestBody)); // Log the request body
+    
+                  const response = await fetch(API_URL + `?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+    
+                    const data = await response.json();
+                    console.log("Response Data:", data); // Log the entire response
+    
+                     if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                        const botResponse = data.candidates[0].content.parts[0].text;
+                        addMessage(botResponse, false);
+                    } else {
+                        addMessage("🚜 Sorry, I didn't receive a valid response from the server. Please try again later.", false);
+                    }
+    
+    
+                } catch (error) {
+                    console.error("API Error:", error);
+                    addMessage("🚜 Sorry, I'm having trouble connecting to the agricultural database. Please try again later.", false);
+                }
+            }
+    
+            // Add Messages to Chat
+            function addMessage(content, isUser) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+                messageDiv.innerHTML = content;
+                chatBody.appendChild(messageDiv);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+    
+            // Event Listeners
+            sendBtn.addEventListener('click', handleUserInput);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleUserInput();
+            });
+    
+            // Sample Questions
+            const sampleQuestions = [
+                "How to improve soil fertility?",
+                "Best crops for rainy season",
+                "How to control aphids organically?",
+                "What is crop rotation?",
+                "How to start organic farming?"
+            ];
+    
+            // Function to create and append a sample question element
+            function createSampleQuestionElement(question) {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'sample-question';
+                questionDiv.textContent = question;
+                questionDiv.addEventListener('click', () => {
+                    userInput.value = question;
+                    handleUserInput();
+                });
+                return questionDiv;
+            }
+    
+    
+            // Display sample questions on first load
+            window.addEventListener('DOMContentLoaded', () => {
+                sampleQuestions.forEach(question => {
+                    const questionElement = createSampleQuestionElement(question);
+                    sampleQuestionsContainer.appendChild(questionElement);
+                });
+            });
+        </script>
+    </body>
+    
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/test.js') }}"></script>
+    <title> {% block title %} {% endblock title %} - Agriculture Recommendation Using Machine Learning</title>
+
+    <script type="text/JavaScript" src="{{ url_for('static', filename='scripts/cities.js') }}"></script>
+</head>
+<body>
+    <header>
+        <div class="container-fluid p-3">
+            <div class="row">
+                <div class="col-lg-6 col-md-12 col-12 site-title text-center text-white">
+                    <a href="{{ url_for('hello_world') }}" style="text-decoration: none;">
+                        <h4 class="font-weight-bolder text-white" style="font-family: 'Arima Madurai', cursive;">Agriculture Recommendation  Using ML </h4>
+                    </a>
+                    </a>
+                </div>
+                <div class="col-lg-6 col-md-6 col-12 text-center text-white">
+                    <a href="{{ url_for('login') }}" class="px-2 text-white mx-2 font-weight-bold bg-gradient bg-primary p-2 rounded" style="text-decoration: none;">Login</a>
+                    <a href="{{ url_for('signup') }}" class="px-2 text-white mx-2 font-weight-bold bg-gradient p-2 rounded" style="text-decoration: none;">Signup</a>
+                    <a href="{{ url_for('AdminLogin') }}" class="px-2 text-white mx-2 font-weight-bold bg-gradient bg-success p-2 rounded" style="text-decoration: none;">Admin login</a>
+                </div>
+            </div>
+        </div>
+        <div class="container-fluid p-0 border border-dark">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white ">
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse " id="navbarNav">
+                    <ul class="navbar-nav mx-auto">
+                        <li class="nav-item active">
+                            <a class="nav-link" href="{{ url_for('hello_world') }}">Home</a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('aboutus') }}">Aboutus</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('contact') }}">Contact</a>
+                        </li>
+
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </header>
+    {% block body %} {% endblock body %}
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+</body>
+
+</html>
